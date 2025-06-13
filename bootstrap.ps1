@@ -2,21 +2,21 @@
 # Terminal Bootstrap Script → Install Git, clone terminal-profiles, download forensic tools.
 # Logs run results to local log, and to Obsidian vault if present.
 
-# Usage (put in your Obsidian note):
-# $env:GITHUB_PAT='ghp_xxxxxx'; irm https://raw.githubusercontent.com/EDWARDO0/bootstrap-terminal/main/bootstrap.ps1 | iex
+# Usage:
+# $env:GITHUB_PAT='ghp_xxxxxx'; irm https://raw.githubusercontent.com/EDWARDO0/Bootstrap-terminal/main/bootstrap.ps1 | iex
 
 # --------------------
 # Configuration
 # --------------------
 
-# Possible Obsidian Vault paths (update as needed)
+# Possible Obsidian Vault paths
 $possibleVaultPaths = @(
-    "C:\Users\meg.dva\OneDrive\Dokumenter\Obsidian Vault",           # Work PC with personal OneDrive
-    "C:\Users\Micha\OneDrive\Obsidian Vault",                        # Private PC main
-    "C:\Users\Micha\OneDrive\Dokumenter\Obsidian Vault"              # Private PC alt (Dokumenter version)
+    "C:\Users\meg.dva\OneDrive\Dokumenter\Obsidian Vault",
+    "C:\Users\Micha\OneDrive\Obsidian Vault",
+    "C:\Users\Micha\OneDrive\Dokumenter\Obsidian Vault"
 )
 
-# Find first existing Obsidian vault path (if any)
+# Detect Obsidian vault path
 $obsidianVaultPath = $null
 foreach ($path in $possibleVaultPaths) {
     if (Test-Path $path) {
@@ -25,7 +25,7 @@ foreach ($path in $possibleVaultPaths) {
     }
 }
 
-# Local log path (always used)
+# Local log path
 $localLogFolder = "$env:USERPROFILE\Documents\bootstrap-logs"
 $localLogPath = "$localLogFolder\terminal-logs.md"
 
@@ -45,10 +45,8 @@ $WinDumpURL = "https://www.winpcap.org/windump/install/bin/windump.exe"
 function Log-Content {
     param([string]$text)
 
-    # Always log locally
     Add-Content -Path $localLogPath -Value $text
 
-    # If Obsidian vault exists → also log there
     if ($obsidianVaultPath) {
         $obsidianLogPath = "$obsidianVaultPath\terminal-logs.md"
         Add-Content -Path $obsidianLogPath -Value $text
@@ -62,8 +60,28 @@ function Install-GitIfMissing {
         Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/latest/download/Git-2.44.0-64-bit.exe" -OutFile $gitInstaller
         Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT" -Wait
         Remove-Item $gitInstaller
-        Write-Host "[+] Git installed." -ForegroundColor Green
-        Log-Content "- Install-GitIfMissing: SUCCESS`n"
+        Write-Host "[+] Git installer finished." -ForegroundColor Green
+
+        # Wait until Git is available
+        $gitReady = $false
+        for ($i = 0; $i -lt 10; $i++) {
+            Start-Sleep -Seconds 2
+            if (Get-Command git -ErrorAction SilentlyContinue) {
+                $gitReady = $true
+                break
+            } else {
+                Write-Host "[*] Waiting for Git to become available... ($($i+1)/10)" -ForegroundColor Yellow
+            }
+        }
+
+        if ($gitReady) {
+            Write-Host "[+] Git is ready to use." -ForegroundColor Green
+            Log-Content "- Install-GitIfMissing: SUCCESS`n"
+        } else {
+            Write-Error "Git installation completed but git.exe is not available. Please restart PowerShell and run the script again."
+            Log-Content "- Install-GitIfMissing: FAILED → git.exe not available`n"
+            exit 1
+        }
     } else {
         Write-Host "[+] Git already installed." -ForegroundColor Green
         Log-Content "- Install-GitIfMissing: ALREADY INSTALLED`n"
@@ -80,7 +98,13 @@ function Clone-TerminalProfiles {
     if (-not (Test-Path $TargetProfilePath)) {
         Write-Host "[*] Cloning terminal-profiles repo..." -ForegroundColor Yellow
         git clone https://EDWARDO0:$env:GITHUB_PAT@github.com/EDWARDO0/terminal-profiles.git $TargetProfilePath
-        Log-Content "- Clone-TerminalProfiles: SUCCESS → Cloned new`n"
+        if ($LASTEXITCODE -eq 0) {
+            Log-Content "- Clone-TerminalProfiles: SUCCESS → Cloned new`n"
+        } else {
+            Write-Error "Git clone failed."
+            Log-Content "- Clone-TerminalProfiles: FAILED → git clone failed`n"
+            exit 1
+        }
     } else {
         Write-Host "[+] Repo already exists → Pulling latest changes..." -ForegroundColor Green
         cd $TargetProfilePath
@@ -93,15 +117,20 @@ function Link-PowerShellProfile {
     $PSProfileSource = "$TargetProfilePath\powershell\Microsoft.PowerShell_profile.ps1"
     $PSProfileTarget = "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
 
-    if (Test-Path $PSProfileTarget) {
-        Write-Host "[*] Existing PowerShell profile found → Backing up..." -ForegroundColor Yellow
-        Copy-Item $PSProfileTarget "$PSProfileTarget.bak" -Force
-    }
+    if (Test-Path $PSProfileSource) {
+        if (Test-Path $PSProfileTarget) {
+            Write-Host "[*] Existing PowerShell profile found → Backing up..." -ForegroundColor Yellow
+            Copy-Item $PSProfileTarget "$PSProfileTarget.bak" -Force
+        }
 
-    Write-Host "[*] Linking PowerShell profile..." -ForegroundColor Yellow
-    Copy-Item $PSProfileSource $PSProfileTarget -Force
-    Write-Host "[+] PowerShell profile linked." -ForegroundColor Green
-    Log-Content "- Link-PowerShellProfile: SUCCESS`n"
+        Write-Host "[*] Linking PowerShell profile..." -ForegroundColor Yellow
+        Copy-Item $PSProfileSource $PSProfileTarget -Force
+        Write-Host "[+] PowerShell profile linked." -ForegroundColor Green
+        Log-Content "- Link-PowerShellProfile: SUCCESS`n"
+    } else {
+        Write-Error "PowerShell profile file not found → skipping link."
+        Log-Content "- Link-PowerShellProfile: SKIPPED → profile not found`n"
+    }
 }
 
 function Download-Tools {
@@ -125,33 +154,4 @@ function Download-Tools {
     Write-Host "[+] WinDump ready." -ForegroundColor Green
     Log-Content "- WinDump: SUCCESS`n"
 
-    # Manual tools
-    Write-Host "[*] NOTE: For GMER, WinPEAS, Seatbelt → please download manually as needed." -ForegroundColor Cyan
-    Log-Content "- Manual tools (GMER / WinPEAS / Seatbelt): MANUAL STEP`n"
-}
-
-# --------------------
-# Main Execution Flow
-# --------------------
-
-# Ensure local log folder exists
-if (-not (Test-Path $localLogFolder)) {
-    New-Item -ItemType Directory -Path $localLogFolder | Out-Null
-}
-
-# Log header
-Log-Content "### 🚀 Bootstrap Run - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n"
-
-Write-Host "`n===== 🚀 Terminal Bootstrap Starting =====" -ForegroundColor Cyan
-
-Install-GitIfMissing
-Clone-TerminalProfiles
-Link-PowerShellProfile
-Download-Tools
-
-Write-Host "`n===== ✅ Terminal Bootstrap Complete! =====" -ForegroundColor Green
-Write-Host "Tools available at: $ToolsPath" -ForegroundColor Cyan
-Write-Host "PowerShell profile linked: $env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1" -ForegroundColor Cyan
-
-# Log footer
-Log-Content "---`n"
+    Write-Host "[*] NOTE: For GMER, WinPEAS, Seatbelt → please download manually*]()
