@@ -154,4 +154,5 @@ function Download-Tools {
     Write-Host "[+] WinDump ready." -ForegroundColor Green
     Log-Content "- WinDump: SUCCESS`n"
 
-    Write-Host "[*] NOTE: For GMER, WinPEAS, Seatbelt → please download manually*]()
+    Write-Host "[*] NOTE: For GMER, WinPEAS, Seatbelt - please download manually." -ForegroundColor Cyan
+
