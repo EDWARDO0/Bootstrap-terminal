@@ -22,3 +22,7 @@ Quickly bootstrap a Windows machine for terminal use, security investigation, an
 
 ```powershell
 $env:GITHUB_PAT='ghp_xxxxxx'
+
+**Run the bootstrap script in one line:**
+
+$env:GITHUB_PAT='ghp_xxxxxx'; irm https://raw.githubusercontent.com/EDWARDO0/bootstrap-terminal/main/bootstrap.ps1 | iex
